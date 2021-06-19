@@ -4,5 +4,5 @@ created_at bigint not null,
 name text not null,
 dst text not null,
 request_addr text not null,
-user_agent text,
+user_agent text
 );
