@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -30,6 +31,7 @@ type ref struct {
 	Dest        string `json:"dst"`
 	RequestAddr string `json:"request_addr"`
 	UserAgent   string `json:"user_agent"`
+	GeoData     string `json:"geo_data"`
 }
 
 func main() {
@@ -94,6 +96,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
+
 	events := []ref{}
 	rows, err := db.Query(r.Context(), "select * from ref")
 	if err != nil {
@@ -103,6 +106,11 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	for rows.Next() && err == nil {
 		var refEvent ref
 		err = rows.Scan(&refEvent.ID, &refEvent.CreatedAt, &refEvent.Name, &refEvent.Dest, &refEvent.RequestAddr, &refEvent.UserAgent)
+		refEvent.GeoData, err = getLoc(refEvent.RequestAddr)
+		if err != nil {
+			http.Error(rw, err.Error(), 500)
+			return
+		}
 		events = append(events, refEvent)
 	}
 	if err != nil {
@@ -113,11 +121,11 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	var b []byte
 	switch resFmt {
 	case "csv":
-		head := strings.Join([]string{"id", "created_at", "name", "dest", "request_addr", "user_agent"}, ",")
+		head := strings.Join([]string{"id", "created_at", "name", "dest", "request_addr", "loc", "user_agent"}, ",")
 		table := []string{head}
 		for _, e := range events {
 			e.UserAgent = strings.ReplaceAll(e.UserAgent, ",", ";")
-			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.UserAgent}, ","))
+			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.GeoData, e.UserAgent}, ","))
 		}
 		b = []byte(strings.Join(table, "\n"))
 
@@ -141,4 +149,28 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 func favHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(200)
 	rw.Write(faviconFile)
+}
+
+func getLoc(addr string) (string, error) {
+	v := strings.Split(addr, ":")[0]
+	res, err := http.DefaultClient.Get("http://api.ipstack.com/" + v + "?access_key=" + os.Getenv("IPSTACK_API_KEY"))
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	info := struct {
+		Contenent string `json:"continent_code"`
+		Country   string `json:"country_code"`
+		Region    string `json:"region_code"`
+		City      string `json:"city"`
+	}{}
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
+	err = json.Unmarshal(b, &info)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join([]string{info.Contenent, info.Country, info.Region, info.City}, "_"), nil
 }
