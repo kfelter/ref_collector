@@ -73,12 +73,20 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		dst = defaultDest
 	}
 
+	id := r.Header.Get("X-Request-Id")
+	if id == "" {
+		id = uuid.New().String()
+	}
+	addr := r.Header.Get("X-Forwarded-For")
+	if ss := strings.Split(addr, ","); len(ss) > 1 {
+		addr = ss[0]
+	}
 	_, err := db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent) values ($1, $2, $3, $4, $5, $6)`,
-		uuid.New().String(),
+		id,
 		time.Now().UnixNano(),
 		refName,
 		dst,
-		r.RemoteAddr,
+		addr,
 		r.Header.Get("User-Agent"),
 	)
 	if err != nil {
@@ -97,6 +105,8 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lookupGeo := r.URL.Query().Get("loc") != ""
+
 	events := []ref{}
 	rows, err := db.Query(r.Context(), "select * from ref")
 	if err != nil {
@@ -106,10 +116,14 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	for rows.Next() && err == nil {
 		var refEvent ref
 		err = rows.Scan(&refEvent.ID, &refEvent.CreatedAt, &refEvent.Name, &refEvent.Dest, &refEvent.RequestAddr, &refEvent.UserAgent)
-		refEvent.GeoData, err = getLoc(refEvent.RequestAddr)
-		if err != nil {
-			http.Error(rw, err.Error(), 500)
-			return
+		if lookupGeo {
+			refEvent.GeoData, err = getLoc(refEvent.RequestAddr)
+			if err != nil {
+				http.Error(rw, err.Error(), 500)
+				return
+			}
+		} else {
+			refEvent.GeoData = "nil"
 		}
 		events = append(events, refEvent)
 	}
