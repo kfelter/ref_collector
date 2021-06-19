@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,9 +103,29 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, err.Error(), 500)
 		return
 	}
-	b, err := json.Marshal(events)
-	if err != nil {
-		http.Error(rw, err.Error(), 500)
+	resFmt := r.URL.Query().Get("fmt")
+	var b []byte
+	switch resFmt {
+	case "csv":
+		head := strings.Join([]string{"id", "created_at", "name", "dest", "request_addr", "user_agent"}, ",")
+		table := []string{head}
+		for _, e := range events {
+			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.UserAgent}, ","))
+		}
+		b = []byte(strings.Join(table, "\n"))
+
+	case "json":
+		b, err = json.MarshalIndent(events, "", " ")
+		if err != nil {
+			http.Error(rw, err.Error(), 500)
+			return
+		}
+	default:
+		b, err = json.MarshalIndent(events, "", " ")
+		if err != nil {
+			http.Error(rw, err.Error(), 500)
+			return
+		}
 	}
 	rw.WriteHeader(200)
 	rw.Write(b)
