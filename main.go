@@ -16,8 +16,10 @@ import (
 var (
 	//go:embed structure.sql
 	structureSQL string
-	defaultDest  = os.Getenv("DEFAULT_DEST")
-	db           *pgxpool.Pool
+	//go:embed favicon.ico
+	faviconFile []byte
+	defaultDest = os.Getenv("DEFAULT_DEST")
+	db          *pgxpool.Pool
 )
 
 type ref struct {
@@ -49,6 +51,7 @@ func main() {
 		log.Fatalln(err, ", pg executing:", structureSQL)
 	}
 
+	http.HandleFunc("/favicon.ico", favHandler)
 	http.HandleFunc("/view", viewHandler)
 	http.HandleFunc("/", refHandler)
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
@@ -105,4 +108,9 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.WriteHeader(200)
 	rw.Write(b)
+}
+
+func favHandler(rw http.ResponseWriter, r *http.Request) {
+	rw.WriteHeader(200)
+	rw.Write(faviconFile)
 }
