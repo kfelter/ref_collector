@@ -88,6 +88,12 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 func viewHandler(rw http.ResponseWriter, r *http.Request) {
+	pin := r.URL.Query().Get("pin")
+	if pin != os.Getenv("PIN") {
+		rw.WriteHeader(http.StatusUnauthorized)
+		rw.Write([]byte(`add "pin" query param`))
+		return
+	}
 	events := []ref{}
 	rows, err := db.Query(r.Context(), "select * from ref")
 	if err != nil {
