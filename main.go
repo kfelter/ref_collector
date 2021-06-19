@@ -110,6 +110,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		head := strings.Join([]string{"id", "created_at", "name", "dest", "request_addr", "user_agent"}, ",")
 		table := []string{head}
 		for _, e := range events {
+			strings.ReplaceAll(e.UserAgent, ",", ";")
 			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.UserAgent}, ","))
 		}
 		b = []byte(strings.Join(table, "\n"))
