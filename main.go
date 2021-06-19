@@ -153,7 +153,9 @@ func favHandler(rw http.ResponseWriter, r *http.Request) {
 
 func getLoc(addr string) (string, error) {
 	v := strings.Split(addr, ":")[0]
-	res, err := http.DefaultClient.Get("http://api.ipstack.com/" + v + "?access_key=" + os.Getenv("IPSTACK_API_KEY"))
+	url := "http://api.ipstack.com/" + v + "?access_key=" + os.Getenv("IPSTACK_API_KEY")
+	log.Println("geo request", url)
+	res, err := http.DefaultClient.Get(url)
 	if err != nil {
 		return "", err
 	}
