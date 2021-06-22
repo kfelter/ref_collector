@@ -19,24 +19,40 @@ var (
 	//go:embed structure.sql
 	structureSQL string
 	//go:embed favicon.ico
-	faviconFile []byte
-	defaultDest = os.Getenv("DEFAULT_DEST")
-	db          *pgxpool.Pool
+	faviconFile    []byte
+	defaultDest    = os.Getenv("DEFAULT_DEST")
+	authPin        = os.Getenv("PIN")
+	neutrinoAPIKey = os.Getenv("NEUTRINO_API_KEY")
+	ipstackAPIKey  = os.Getenv("IPSTACK_API_KEY")
+	db             *pgxpool.Pool
+	locTimeout     time.Duration
 )
 
 type ref struct {
-	ID          string `json:"id"`
-	CreatedAt   int64  `json:"created_at"`
-	Name        string `json:"name"`
-	Dest        string `json:"dst"`
-	RequestAddr string `json:"request_addr"`
-	UserAgent   string `json:"user_agent"`
-	GeoData     string `json:"geo_data"`
+	ID          string  `json:"id"`
+	CreatedAt   int64   `json:"created_at"`
+	Name        string  `json:"name"`
+	Dest        string  `json:"dst"`
+	RequestAddr string  `json:"request_addr"`
+	UserAgent   string  `json:"user_agent"`
+	Continent   string  `json:"continent"`
+	Country     string  `json:"country"`
+	Region      string  `json:"region"`
+	City        string  `json:"city"`
+	Zip         string  `json:"zip"`
+	Latitude    float32 `json:"latitude"`
+	Longitiude  float32 `json:"longitude"`
 }
 
 func main() {
 	if defaultDest == "" {
 		log.Fatalln("env var DEFAULT_DEST is required")
+	}
+	var err error
+	locTimeout, err = time.ParseDuration(os.Getenv("LOC_TIMEOUT"))
+	if err != nil {
+		log.Println("setting loc timeout to default 300ms")
+		locTimeout = 300 * time.Millisecond
 	}
 
 	poolConfig, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
@@ -81,13 +97,30 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	if ss := strings.Split(addr, ","); len(ss) > 1 {
 		addr = ss[0]
 	}
-	_, err := db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent) values ($1, $2, $3, $4, $5, $6)`,
+	ctx, cancel := context.WithTimeout(context.Background(), locTimeout)
+	defer cancel()
+
+	locInfo, err := getLoc(ctx, addr)
+	if err != nil {
+		log.Println("error getting location data", err)
+		// TODO: remove 500 error after confirming it works
+		http.Error(rw, err.Error(), 500)
+		return
+	}
+	_, err = db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
 		id,
 		time.Now().UnixNano(),
 		refName,
 		dst,
 		addr,
 		r.Header.Get("User-Agent"),
+		locInfo.Continent,
+		locInfo.Country,
+		locInfo.Region,
+		locInfo.City,
+		locInfo.Zip,
+		locInfo.Latitude,
+		locInfo.Longitude,
 	)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
@@ -99,13 +132,11 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 
 func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	pin := r.URL.Query().Get("pin")
-	if pin != os.Getenv("PIN") {
+	if pin != authPin {
 		rw.WriteHeader(http.StatusUnauthorized)
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
-
-	lookupGeo := r.URL.Query().Get("loc") != ""
 
 	events := []ref{}
 	rows, err := db.Query(r.Context(), "select * from ref")
@@ -115,16 +146,21 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 	for rows.Next() && err == nil {
 		var refEvent ref
-		err = rows.Scan(&refEvent.ID, &refEvent.CreatedAt, &refEvent.Name, &refEvent.Dest, &refEvent.RequestAddr, &refEvent.UserAgent)
-		if lookupGeo {
-			refEvent.GeoData, err = getLoc(refEvent.RequestAddr)
-			if err != nil {
-				http.Error(rw, err.Error(), 500)
-				return
-			}
-		} else {
-			refEvent.GeoData = "nil"
-		}
+		err = rows.Scan(
+			&refEvent.ID,
+			&refEvent.CreatedAt,
+			&refEvent.Name,
+			&refEvent.Dest,
+			&refEvent.RequestAddr,
+			&refEvent.UserAgent,
+			&refEvent.Continent,
+			&refEvent.Country,
+			&refEvent.Region,
+			&refEvent.City,
+			&refEvent.Zip,
+			&refEvent.Latitude,
+			&refEvent.Longitiude,
+		)
 		events = append(events, refEvent)
 	}
 	if err != nil {
@@ -135,11 +171,11 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	var b []byte
 	switch resFmt {
 	case "csv":
-		head := strings.Join([]string{"id", "created_at", "name", "dest", "request_addr", "loc", "user_agent"}, ",")
+		head := strings.Join([]string{"id", "created_at", "name", "dest", "request_addr", "continent", "country", "region", "city", "user_agent"}, ",")
 		table := []string{head}
 		for _, e := range events {
 			e.UserAgent = strings.ReplaceAll(e.UserAgent, ",", ";")
-			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.GeoData, e.UserAgent}, ","))
+			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent, e.Country, e.Region, e.City, e.UserAgent}, ","))
 		}
 		b = []byte(strings.Join(table, "\n"))
 
@@ -165,28 +201,35 @@ func favHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(faviconFile)
 }
 
-func getLoc(addr string) (string, error) {
-	v := strings.Split(addr, ":")[0]
-	url := "http://api.ipstack.com/" + v + "?access_key=" + os.Getenv("IPSTACK_API_KEY")
-	log.Println("geo request", url)
-	res, err := http.DefaultClient.Get(url)
+type locInfo struct {
+	Continent string  `json:"continent"`
+	Country   string  `json:"country"`
+	Region    string  `json:"region"`
+	City      string  `json:"city"`
+	Zip       string  `json:"zip"`
+	Latitude  float32 `json:"latitude"`
+	Longitude float32 `json:"longitude"`
+}
+
+func getLoc(ctx context.Context, addr string) (*locInfo, error) {
+	url := "http://api.ipstack.com/" + addr + "?access_key=" + ipstackAPIKey
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer res.Body.Close()
-	info := struct {
-		Contenent string `json:"continent_code"`
-		Country   string `json:"country_code"`
-		Region    string `json:"region_code"`
-		City      string `json:"city"`
-	}{}
 	b, err := io.ReadAll(res.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	info := locInfo{}
 	err = json.Unmarshal(b, &info)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return strings.Join([]string{info.Contenent, info.Country, info.Region, info.City}, "_"), nil
+	return &info, nil
 }
