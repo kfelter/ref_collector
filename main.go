@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -30,19 +31,19 @@ var (
 )
 
 type ref struct {
-	ID          string  `json:"id"`
-	CreatedAt   int64   `json:"created_at"`
-	Name        string  `json:"name"`
-	Dest        string  `json:"dst"`
-	RequestAddr string  `json:"request_addr"`
-	UserAgent   string  `json:"user_agent"`
-	Continent   string  `json:"continent"`
-	Country     string  `json:"country"`
-	Region      string  `json:"region"`
-	City        string  `json:"city"`
-	Zip         string  `json:"zip"`
-	Latitude    float32 `json:"latitude"`
-	Longitiude  float32 `json:"longitude"`
+	ID          string          `json:"id"`
+	CreatedAt   int64           `json:"created_at"`
+	Name        string          `json:"name"`
+	Dest        string          `json:"dst"`
+	RequestAddr string          `json:"request_addr"`
+	UserAgent   string          `json:"user_agent"`
+	Continent   string          `json:"continent"`
+	Country     sql.NullString  `json:"country"`
+	Region      sql.NullString  `json:"region"`
+	City        sql.NullString  `json:"city"`
+	Zip         sql.NullString  `json:"zip"`
+	Latitude    sql.NullFloat64 `json:"latitude"`
+	Longitiude  sql.NullFloat64 `json:"longitude"`
 }
 
 func main() {
@@ -177,7 +178,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		table := []string{head}
 		for _, e := range events {
 			e.UserAgent = strings.ReplaceAll(e.UserAgent, ",", ";")
-			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent, e.Country, e.Region, e.City, e.UserAgent}, ","))
+			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent, e.Country.String, e.Region.String, e.City.String, e.UserAgent}, ","))
 		}
 		b = []byte(strings.Join(table, "\n"))
 
