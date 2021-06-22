@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -139,13 +140,13 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	events := []ref{}
-	rows, err := db.Query(r.Context(), "select * from ref")
+	rows, err := db.Query(r.Context(), "select (id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude) from ref")
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
 	}
+	var refEvent ref
 	for rows.Next() && err == nil {
-		var refEvent ref
 		err = rows.Scan(
 			&refEvent.ID,
 			&refEvent.CreatedAt,
@@ -162,9 +163,10 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 			&refEvent.Longitiude,
 		)
 		events = append(events, refEvent)
+		fmt.Printf("ref: %+v\n", refEvent)
 	}
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		http.Error(rw, fmt.Sprintf("e: %+v", refEvent)+",err: "+err.Error(), 500)
 		return
 	}
 	resFmt := r.URL.Query().Get("fmt")
