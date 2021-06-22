@@ -43,7 +43,23 @@ type ref struct {
 	City        sql.NullString  `json:"city"`
 	Zip         sql.NullString  `json:"zip"`
 	Latitude    sql.NullFloat64 `json:"latitude"`
-	Longitiude  sql.NullFloat64 `json:"longitude"`
+	Longitude   sql.NullFloat64 `json:"longitude"`
+}
+
+type refApi struct {
+	ID          string  `json:"id"`
+	CreatedAt   int64   `json:"created_at"`
+	Name        string  `json:"name"`
+	Dest        string  `json:"dst"`
+	RequestAddr string  `json:"request_addr"`
+	UserAgent   string  `json:"user_agent"`
+	Continent   string  `json:"continent"`
+	Country     string  `json:"country"`
+	Region      string  `json:"region"`
+	City        string  `json:"city"`
+	Zip         string  `json:"zip"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
 }
 
 func main() {
@@ -141,7 +157,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := []ref{}
+	events := []refApi{}
 	rows, err := db.Query(r.Context(), "select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude from ref")
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
@@ -162,10 +178,23 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 			&refEvent.City,
 			&refEvent.Zip,
 			&refEvent.Latitude,
-			&refEvent.Longitiude,
+			&refEvent.Longitude,
 		)
-		events = append(events, refEvent)
-		fmt.Printf("ref: %+v\n", refEvent)
+		events = append(events, refApi{
+			ID:          refEvent.ID,
+			CreatedAt:   refEvent.CreatedAt,
+			Name:        refEvent.Name,
+			Dest:        refEvent.Dest,
+			RequestAddr: refEvent.RequestAddr,
+			UserAgent:   refEvent.UserAgent,
+			Continent:   refEvent.Continent.String,
+			Country:     refEvent.Country.String,
+			Region:      refEvent.Region.String,
+			City:        refEvent.City.String,
+			Zip:         refEvent.Zip.String,
+			Latitude:    refEvent.Latitude.Float64,
+			Longitude:   refEvent.Longitude.Float64,
+		})
 	}
 	if err != nil {
 		http.Error(rw, fmt.Sprintf("e: %+v", refEvent)+",err: "+err.Error(), 500)
@@ -179,7 +208,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		table := []string{head}
 		for _, e := range events {
 			e.UserAgent = strings.ReplaceAll(e.UserAgent, ",", ";")
-			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent.String, e.Country.String, e.Region.String, e.City.String, e.UserAgent}, ","))
+			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent, e.Country, e.Region, e.City, e.UserAgent}, ","))
 		}
 		b = []byte(strings.Join(table, "\n"))
 
@@ -206,9 +235,9 @@ func favHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 type locInfo struct {
-	Continent string  `json:"continent"`
-	Country   string  `json:"country"`
-	Region    string  `json:"region"`
+	Continent string  `json:"continent_name"`
+	Country   string  `json:"country_name"`
+	Region    string  `json:"region_name"`
 	City      string  `json:"city"`
 	Zip       string  `json:"zip"`
 	Latitude  float32 `json:"latitude"`
@@ -230,12 +259,10 @@ func getLoc(ctx context.Context, addr string) (*locInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("raw loc resp\n", string(b))
 	info := locInfo{}
 	err = json.Unmarshal(b, &info)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("locInfo: %+v\n", info)
 	return &info, nil
 }
