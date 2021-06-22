@@ -109,6 +109,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, err.Error(), 500)
 		return
 	}
+
 	_, err = db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
 		id,
 		time.Now().UnixNano(),
@@ -229,10 +230,12 @@ func getLoc(ctx context.Context, addr string) (*locInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("raw loc resp\n", string(b))
 	info := locInfo{}
 	err = json.Unmarshal(b, &info)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("locInfo: %+v\n", info)
 	return &info, nil
 }
