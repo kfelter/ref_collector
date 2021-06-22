@@ -140,7 +140,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	events := []ref{}
-	rows, err := db.Query(r.Context(), "select (id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude) from ref")
+	rows, err := db.Query(r.Context(), "select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude from ref")
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
