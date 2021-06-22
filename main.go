@@ -37,7 +37,7 @@ type ref struct {
 	Dest        string          `json:"dst"`
 	RequestAddr string          `json:"request_addr"`
 	UserAgent   string          `json:"user_agent"`
-	Continent   string          `json:"continent"`
+	Continent   sql.NullString  `json:"continent"`
 	Country     sql.NullString  `json:"country"`
 	Region      sql.NullString  `json:"region"`
 	City        sql.NullString  `json:"city"`
@@ -178,7 +178,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		table := []string{head}
 		for _, e := range events {
 			e.UserAgent = strings.ReplaceAll(e.UserAgent, ",", ";")
-			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent, e.Country.String, e.Region.String, e.City.String, e.UserAgent}, ","))
+			table = append(table, strings.Join([]string{e.ID, time.Unix(0, e.CreatedAt).Format(time.RFC3339), e.Name, e.Dest, e.RequestAddr, e.Continent.String, e.Country.String, e.Region.String, e.City.String, e.UserAgent}, ","))
 		}
 		b = []byte(strings.Join(table, "\n"))
 
