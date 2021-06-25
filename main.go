@@ -240,7 +240,7 @@ func getEvents(ctx context.Context) ([]refApi, error) {
 			Latitude:    refEvent.Latitude.Float64,
 			Longitude:   refEvent.Longitude.Float64,
 			TimeHuman:   time.Unix(0, refEvent.CreatedAt).Local().Format(time.RFC3339),
-			AllData:     fmt.Sprintf("Ref: %s\nDest: %s\nIP: %s\nUser Agent: %s\nCreated At: %s", refEvent.Name, refEvent.Dest, refEvent.RequestAddr, refEvent.UserAgent, time.Unix(0, refEvent.CreatedAt).Local().Format(time.RFC3339)),
+			AllData:     fmt.Sprintf("Ref %s | Dest: %s | IP: %s | User Agent: %s | Created At: %s", refEvent.Name, refEvent.Dest, refEvent.RequestAddr, refEvent.UserAgent, time.Unix(0, refEvent.CreatedAt).Local().Format(time.ANSIC)),
 		})
 	}
 	return events, nil

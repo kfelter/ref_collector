@@ -11,9 +11,9 @@
       google.charts.setOnLoadCallback(drawChart);
       function drawChart() {
         var data = google.visualization.arrayToDataTable([
-          ['Lat', 'Long', 'Name', 'Description'],
+          ['Lat', 'Long', 'Name'],
           {{range $point := .}}
-          [{{$point.Latitude}}, {{$point.Longitude}}, {{$point.Name}}, {{$point.AllData}}],
+          [{{$point.Latitude}}, {{$point.Longitude}}, {{$point.AllData}}],
           {{end}}
         //   [37.4232, -122.0853, 'Work'],
         //   [37.4289, -122.1697, 'University'],
