@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
@@ -64,6 +65,7 @@ type refApi struct {
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
 	TimeHuman   string  `json:"time_human"`
+	AllData     string  `json:"all_data"`
 }
 
 func main() {
@@ -197,6 +199,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 func getEvents(ctx context.Context) ([]refApi, error) {
+	time.Local, _ = time.LoadLocation("America/New_York")
 	events := []refApi{}
 	rows, err := db.Query(ctx, "select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude from ref where latitude is not null and longitude is not null")
 	if err != nil {
@@ -236,13 +239,20 @@ func getEvents(ctx context.Context) ([]refApi, error) {
 			Zip:         refEvent.Zip.String,
 			Latitude:    refEvent.Latitude.Float64,
 			Longitude:   refEvent.Longitude.Float64,
-			TimeHuman:   time.Unix(0, refEvent.CreatedAt).Format(time.RFC3339),
+			TimeHuman:   time.Unix(0, refEvent.CreatedAt).Local().Format(time.RFC3339),
+			AllData:     fmt.Sprintf("Ref: %s\nDest: %s\nIP: %s\nUser Agent: %s\nCreated At: %s", refEvent.Name, refEvent.Dest, refEvent.RequestAddr, refEvent.UserAgent, time.Unix(0, refEvent.CreatedAt).Local().Format(time.RFC3339)),
 		})
 	}
 	return events, nil
 }
 
 func viewMapHandler(rw http.ResponseWriter, r *http.Request) {
+	pin := r.URL.Query().Get("pin")
+	if pin != authPin {
+		rw.WriteHeader(http.StatusUnauthorized)
+		rw.Write([]byte(`add "pin" query param`))
+		return
+	}
 	events, err := getEvents(r.Context())
 	if err != nil {
 		http.Error(rw, err.Error(), 500)

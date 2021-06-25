@@ -13,7 +13,7 @@
         var data = google.visualization.arrayToDataTable([
           ['Lat', 'Long', 'Name'],
           {{range $point := .}}
-          [{{$point.Latitude}}, {{$point.Longitude}}, {{$point.TimeHuman}}],
+          [{{$point.Latitude}}, {{$point.Longitude}}, {{$point.AllData}}],
           {{end}}
         //   [37.4232, -122.0853, 'Work'],
         //   [37.4289, -122.1697, 'University'],
@@ -32,6 +32,6 @@
   </head>
 
   <body>
-    <div id="map_div" style="width: 400px; height: 300px"></div>
+    <div id="map_div" style="width: 800px; height: 600px"></div>
   </body>
 </html>
