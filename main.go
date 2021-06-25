@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
-	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -15,13 +15,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 )
 
 var (
 	//go:embed structure.sql
 	structureSQL string
 	//go:embed favicon.ico
-	faviconFile    []byte
+	faviconFile []byte
+	//go:embed tmpl/map.html
+	view_map_tmpl  string
 	defaultDest    = os.Getenv("DEFAULT_DEST")
 	authPin        = os.Getenv("PIN")
 	neutrinoAPIKey = os.Getenv("NEUTRINO_API_KEY")
@@ -60,6 +63,7 @@ type refApi struct {
 	Zip         string  `json:"zip"`
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
+	TimeHuman   string  `json:"time_human"`
 }
 
 func main() {
@@ -89,6 +93,7 @@ func main() {
 	}
 
 	http.HandleFunc("/favicon.ico", favHandler)
+	http.HandleFunc("/view/map", viewMapHandler)
 	http.HandleFunc("/view", viewHandler)
 	http.HandleFunc("/", refHandler)
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
@@ -157,47 +162,9 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := []refApi{}
-	rows, err := db.Query(r.Context(), "select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude from ref")
+	events, err := getEvents(r.Context())
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
-		return
-	}
-	var refEvent ref
-	for rows.Next() && err == nil {
-		err = rows.Scan(
-			&refEvent.ID,
-			&refEvent.CreatedAt,
-			&refEvent.Name,
-			&refEvent.Dest,
-			&refEvent.RequestAddr,
-			&refEvent.UserAgent,
-			&refEvent.Continent,
-			&refEvent.Country,
-			&refEvent.Region,
-			&refEvent.City,
-			&refEvent.Zip,
-			&refEvent.Latitude,
-			&refEvent.Longitude,
-		)
-		events = append(events, refApi{
-			ID:          refEvent.ID,
-			CreatedAt:   refEvent.CreatedAt,
-			Name:        refEvent.Name,
-			Dest:        refEvent.Dest,
-			RequestAddr: refEvent.RequestAddr,
-			UserAgent:   refEvent.UserAgent,
-			Continent:   refEvent.Continent.String,
-			Country:     refEvent.Country.String,
-			Region:      refEvent.Region.String,
-			City:        refEvent.City.String,
-			Zip:         refEvent.Zip.String,
-			Latitude:    refEvent.Latitude.Float64,
-			Longitude:   refEvent.Longitude.Float64,
-		})
-	}
-	if err != nil {
-		http.Error(rw, fmt.Sprintf("e: %+v", refEvent)+",err: "+err.Error(), 500)
 		return
 	}
 	resFmt := r.URL.Query().Get("fmt")
@@ -227,6 +194,70 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.WriteHeader(200)
 	rw.Write(b)
+}
+
+func getEvents(ctx context.Context) ([]refApi, error) {
+	events := []refApi{}
+	rows, err := db.Query(ctx, "select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude from ref where latitude is not null and longitude is not null")
+	if err != nil {
+		return nil, errors.Wrap(err, "db.Query")
+	}
+	var refEvent ref
+	for rows.Next() && err == nil {
+		err = rows.Scan(
+			&refEvent.ID,
+			&refEvent.CreatedAt,
+			&refEvent.Name,
+			&refEvent.Dest,
+			&refEvent.RequestAddr,
+			&refEvent.UserAgent,
+			&refEvent.Continent,
+			&refEvent.Country,
+			&refEvent.Region,
+			&refEvent.City,
+			&refEvent.Zip,
+			&refEvent.Latitude,
+			&refEvent.Longitude,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "scan")
+		}
+		events = append(events, refApi{
+			ID:          refEvent.ID,
+			CreatedAt:   refEvent.CreatedAt,
+			Name:        refEvent.Name,
+			Dest:        refEvent.Dest,
+			RequestAddr: refEvent.RequestAddr,
+			UserAgent:   refEvent.UserAgent,
+			Continent:   refEvent.Continent.String,
+			Country:     refEvent.Country.String,
+			Region:      refEvent.Region.String,
+			City:        refEvent.City.String,
+			Zip:         refEvent.Zip.String,
+			Latitude:    refEvent.Latitude.Float64,
+			Longitude:   refEvent.Longitude.Float64,
+			TimeHuman:   time.Unix(0, refEvent.CreatedAt).Format(time.RFC3339),
+		})
+	}
+	return events, nil
+}
+
+func viewMapHandler(rw http.ResponseWriter, r *http.Request) {
+	events, err := getEvents(r.Context())
+	if err != nil {
+		http.Error(rw, err.Error(), 500)
+		return
+	}
+	t, err := template.New("map").Parse(view_map_tmpl)
+	if err != nil {
+		http.Error(rw, err.Error(), 500)
+		return
+	}
+	err = t.ExecuteTemplate(rw, "map", events)
+	if err != nil {
+		http.Error(rw, err.Error(), 500)
+		return
+	}
 }
 
 func favHandler(rw http.ResponseWriter, r *http.Request) {
