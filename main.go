@@ -218,7 +218,8 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]refApi, e
 		 from ref 
 		 where latitude is not null 
 		 and longitude is not null 
-		 and created_at > ? and created_at < ?`, fromUnixNano, toUnixNano)
+		 and created_at > $1 
+		 and created_at < $2`, fromUnixNano, toUnixNano)
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
 	}
