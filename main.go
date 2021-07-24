@@ -96,6 +96,7 @@ func main() {
 	}
 
 	http.HandleFunc("/favicon.ico", favHandler)
+	http.HandleFunc("/robots.txt", robotsHandler)
 	http.HandleFunc("/view/map", viewMapHandler)
 	http.HandleFunc("/view", viewHandler)
 	http.HandleFunc("/", refHandler)
@@ -336,4 +337,9 @@ func getLoc(ctx context.Context, addr string) (*locInfo, error) {
 		return nil, err
 	}
 	return &info, nil
+}
+
+func robotsHandler(rw http.ResponseWriter, r *http.Request) {
+	rw.WriteHeader(200)
+	rw.Write([]byte(`crawl-delay: 86400`))
 }
