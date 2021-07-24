@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -65,7 +66,7 @@ type refApi struct {
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
 	TimeHuman   string  `json:"time_human"`
-	AllData     string  `json:"all_data"`
+	AllData     string  `json:"-"`
 }
 
 func main() {
@@ -164,7 +165,18 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := getEvents(r.Context())
+	var (
+		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()
+		toUnixNano   = time.Now().UnixNano()
+	)
+
+	tRange := r.URL.Query().Get("range")
+	if tRange == "all" {
+		fromUnixNano = int64(0)
+		toUnixNano = int64(math.MaxInt64)
+	}
+
+	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
@@ -198,10 +210,15 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(b)
 }
 
-func getEvents(ctx context.Context) ([]refApi, error) {
+func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]refApi, error) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 	events := []refApi{}
-	rows, err := db.Query(ctx, "select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude from ref where latitude is not null and longitude is not null")
+	rows, err := db.Query(ctx,
+		`select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude
+		 from ref 
+		 where latitude is not null 
+		 and longitude is not null 
+		 and created_at > ? and created_at < ?`, fromUnixNano, toUnixNano)
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
 	}
@@ -253,7 +270,19 @@ func viewMapHandler(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
-	events, err := getEvents(r.Context())
+
+	var (
+		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()
+		toUnixNano   = time.Now().UnixNano()
+	)
+
+	tRange := r.URL.Query().Get("range")
+	if tRange == "all" {
+		fromUnixNano = int64(0)
+		toUnixNano = int64(math.MaxInt64)
+	}
+
+	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
