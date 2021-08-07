@@ -205,7 +205,7 @@ func tokenHandler(w http.ResponseWriter, req *http.Request) {
 		b, _ := json.MarshalIndent(map[string]interface{}{
 			"token":  token,
 			"claims": claims,
-			"err":    err.Error(),
+			"err":    err,
 		}, "", " ")
 		w.WriteHeader(200)
 		w.Write(b)
