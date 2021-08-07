@@ -147,29 +147,11 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 
-	if token := r.URL.Query().Get("token"); token != "" {
-		http.SetCookie(rw, &http.Cookie{
-			Name:  "Bearer",
-			Value: token,
-		})
-	}
-
-	c, err := r.Cookie("Bearer")
-	if err != nil {
-		pin := r.URL.Query().Get("pin")
-		if pin != authPin {
-			rw.WriteHeader(http.StatusUnauthorized)
-			rw.Write([]byte(`add "pin" query param`))
-			return
-		}
-	} else {
-		claims, err := parseToken(c.Value)
-		if err != nil {
-			http.Error(rw, err.Error(), 401)
-			return
-		} else {
-			fmt.Printf("user %s viewing refs", claims["user"])
-		}
+	pin := r.URL.Query().Get("pin")
+	if pin != authPin {
+		rw.WriteHeader(http.StatusUnauthorized)
+		rw.Write([]byte(`add "pin" query param`))
+		return
 	}
 
 	var (
@@ -218,19 +200,30 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 func tokenHandler(w http.ResponseWriter, req *http.Request) {
+	if token := req.URL.Query().Get("token"); token != "" {
+		claims, err := parseToken(token)
+		b, _ := json.MarshalIndent(map[string]interface{}{
+			"token":  token,
+			"claims": claims,
+			"err":    err.Error(),
+		}, "", " ")
+		w.WriteHeader(200)
+		w.Write(b)
+		return
+	}
 	user := req.URL.Query().Get("user")
 	pass := req.URL.Query().Get("pass")
+	if pass != authPin {
+		http.Error(w, "pass incorrect", 401)
+		return
+	}
 
 	token, err := genToken(user, pass, jwtKey)
 	if err != nil {
 		http.Error(w, err.Error(), 401)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:  "Bearer",
-		Value: token,
-	})
-	http.Redirect(w, req, "/view?token="+token, 302)
+	http.Redirect(w, req, "/auth/token?token="+token, 302)
 }
 
 func genToken(user, pass string, key []byte) (string, error) {
