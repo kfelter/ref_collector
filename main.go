@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -31,27 +32,12 @@ var (
 	authPin        = os.Getenv("PIN")
 	neutrinoAPIKey = os.Getenv("NEUTRINO_API_KEY")
 	ipstackAPIKey  = os.Getenv("IPSTACK_API_KEY")
+	jwtKey         = []byte(os.Getenv("JWT_KEY"))
 	db             *pgxpool.Pool
 	locTimeout     time.Duration
 )
 
-type ref struct {
-	ID          string          `json:"id"`
-	CreatedAt   int64           `json:"created_at"`
-	Name        string          `json:"name"`
-	Dest        string          `json:"dst"`
-	RequestAddr string          `json:"request_addr"`
-	UserAgent   string          `json:"user_agent"`
-	Continent   sql.NullString  `json:"continent"`
-	Country     sql.NullString  `json:"country"`
-	Region      sql.NullString  `json:"region"`
-	City        sql.NullString  `json:"city"`
-	Zip         sql.NullString  `json:"zip"`
-	Latitude    sql.NullFloat64 `json:"latitude"`
-	Longitude   sql.NullFloat64 `json:"longitude"`
-}
-
-type refApi struct {
+type event struct {
 	ID          string  `json:"id"`
 	CreatedAt   int64   `json:"created_at"`
 	Name        string  `json:"name"`
@@ -66,7 +52,6 @@ type refApi struct {
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
 	TimeHuman   string  `json:"time_human"`
-	AllData     string  `json:"-"`
 }
 
 func main() {
@@ -99,6 +84,7 @@ func main() {
 	http.HandleFunc("/robots.txt", robotsHandler)
 	http.HandleFunc("/view/map", viewMapHandler)
 	http.HandleFunc("/view", viewHandler)
+	http.HandleFunc("/auth/token", tokenHandler)
 	http.HandleFunc("/", refHandler)
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
 		log.Fatalln(err)
@@ -159,11 +145,20 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 func viewHandler(rw http.ResponseWriter, r *http.Request) {
-	pin := r.URL.Query().Get("pin")
-	if pin != authPin {
-		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write([]byte(`add "pin" query param`))
-		return
+	time.Local, _ = time.LoadLocation("America/New_York")
+
+	c, _ := r.Cookie("Bearer")
+	claims, err := parseToken(c.Value)
+	if err != nil {
+		fmt.Println("error using jwt token", err)
+		pin := r.URL.Query().Get("pin")
+		if pin != authPin {
+			rw.WriteHeader(http.StatusUnauthorized)
+			rw.Write([]byte(`add "pin" query param`))
+			return
+		}
+	} else {
+		fmt.Printf("user %s viewing refs", claims["user"])
 	}
 
 	var (
@@ -211,9 +206,68 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(b)
 }
 
-func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]refApi, error) {
+func tokenHandler(w http.ResponseWriter, req *http.Request) {
+	user := req.URL.Query().Get("user")
+	pass := req.URL.Query().Get("pass")
+
+	token, err := genToken(user, pass, jwtKey)
+	if err != nil {
+		http.Error(w, err.Error(), 401)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:  "Bearer",
+		Value: token,
+	})
+}
+
+func genToken(user, pass string, key []byte) (string, error) {
+	// Create a new token object, specifying signing method and the claims
+	// you would like it to contain.
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user": user,
+		"nbf":  time.Now().Unix(),
+	})
+
+	// Sign and get the complete encoded token as a string using the secret
+	return token.SignedString(key)
+}
+
+func parseToken(tokenString string) (jwt.MapClaims, error) {
+	// Parse takes the token string and a function for looking up the key. The latter is especially
+	// useful if you use multiple keys for your application.  The standard is to use 'kid' in the
+	// head of the token to identify which key to use, but the parsed token (head and claims) is provided
+	// to the callback, providing flexibility.
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return jwtKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("token not valid")
+	}
+
+	var claims jwt.MapClaims
+	var ok bool
+	if claims, ok = token.Claims.(jwt.MapClaims); !ok {
+		return nil, fmt.Errorf("error getting claims")
+	}
+	return claims, nil
+
+}
+
+func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]event, error) {
 	time.Local, _ = time.LoadLocation("America/New_York")
-	events := []refApi{}
+	events := []event{}
 	rows, err := db.Query(ctx,
 		`select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude
 		 from ref 
@@ -224,42 +278,55 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]refApi, e
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
 	}
-	var refEvent ref
+	var (
+		ID          = new(string)
+		CreatedAt   = new(int64)
+		Name        = new(string)
+		Dest        = new(string)
+		RequestAddr = new(string)
+		UserAgent   = new(string)
+		Continent   = new(sql.NullString)
+		Country     = new(sql.NullString)
+		Region      = new(sql.NullString)
+		City        = new(sql.NullString)
+		Zip         = new(sql.NullString)
+		Latitude    = new(sql.NullFloat64)
+		Longitude   = new(sql.NullFloat64)
+	)
 	for rows.Next() && err == nil {
 		err = rows.Scan(
-			&refEvent.ID,
-			&refEvent.CreatedAt,
-			&refEvent.Name,
-			&refEvent.Dest,
-			&refEvent.RequestAddr,
-			&refEvent.UserAgent,
-			&refEvent.Continent,
-			&refEvent.Country,
-			&refEvent.Region,
-			&refEvent.City,
-			&refEvent.Zip,
-			&refEvent.Latitude,
-			&refEvent.Longitude,
+			ID,
+			CreatedAt,
+			Name,
+			Dest,
+			RequestAddr,
+			UserAgent,
+			Continent,
+			Country,
+			Region,
+			City,
+			Zip,
+			Latitude,
+			Longitude,
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "scan")
 		}
-		events = append(events, refApi{
-			ID:          refEvent.ID,
-			CreatedAt:   refEvent.CreatedAt,
-			Name:        refEvent.Name,
-			Dest:        refEvent.Dest,
-			RequestAddr: refEvent.RequestAddr,
-			UserAgent:   refEvent.UserAgent,
-			Continent:   refEvent.Continent.String,
-			Country:     refEvent.Country.String,
-			Region:      refEvent.Region.String,
-			City:        refEvent.City.String,
-			Zip:         refEvent.Zip.String,
-			Latitude:    refEvent.Latitude.Float64,
-			Longitude:   refEvent.Longitude.Float64,
-			TimeHuman:   time.Unix(0, refEvent.CreatedAt).Local().Format(time.RFC3339),
-			AllData:     fmt.Sprintf("Ref %s | Dest: %s | IP: %s | User Agent: %s | Created At: %s", refEvent.Name, refEvent.Dest, refEvent.RequestAddr, refEvent.UserAgent, time.Unix(0, refEvent.CreatedAt).Local().Format(time.ANSIC)),
+		events = append(events, event{
+			ID:          *ID,
+			CreatedAt:   *CreatedAt,
+			Name:        *Name,
+			Dest:        *Dest,
+			RequestAddr: *RequestAddr,
+			UserAgent:   *UserAgent,
+			Continent:   Continent.String,
+			Country:     Country.String,
+			Region:      Region.String,
+			City:        City.String,
+			Zip:         Zip.String,
+			Latitude:    Latitude.Float64,
+			Longitude:   Longitude.Float64,
+			TimeHuman:   time.Unix(0, *CreatedAt).Local().Format(time.RFC3339),
 		})
 	}
 	return events, nil
