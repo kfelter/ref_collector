@@ -147,10 +147,8 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 
-	c, _ := r.Cookie("Bearer")
-	claims, err := parseToken(c.Value)
+	c, err := r.Cookie("Bearer")
 	if err != nil {
-		fmt.Println("error using jwt token", err)
 		pin := r.URL.Query().Get("pin")
 		if pin != authPin {
 			rw.WriteHeader(http.StatusUnauthorized)
@@ -158,7 +156,13 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		fmt.Printf("user %s viewing refs", claims["user"])
+		claims, err := parseToken(c.Value)
+		if err != nil {
+			http.Error(rw, err.Error(), 401)
+			return
+		} else {
+			fmt.Printf("user %s viewing refs", claims["user"])
+		}
 	}
 
 	var (
