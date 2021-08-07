@@ -147,6 +147,13 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 
+	if token := r.URL.Query().Get("token"); token != "" {
+		http.SetCookie(rw, &http.Cookie{
+			Name:  "Bearer",
+			Value: token,
+		})
+	}
+
 	c, err := r.Cookie("Bearer")
 	if err != nil {
 		pin := r.URL.Query().Get("pin")
@@ -223,6 +230,7 @@ func tokenHandler(w http.ResponseWriter, req *http.Request) {
 		Name:  "Bearer",
 		Value: token,
 	})
+	http.Redirect(w, req, "/view?token="+token, 302)
 }
 
 func genToken(user, pass string, key []byte) (string, error) {
