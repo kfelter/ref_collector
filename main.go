@@ -16,13 +16,12 @@ var (
 	//go:embed embed
 	embedFS embed.FS
 
-	defaultDest    = os.Getenv("DEFAULT_DEST")
-	authPin        = os.Getenv("PIN")
-	neutrinoAPIKey = os.Getenv("NEUTRINO_API_KEY")
-	ipstackAPIKey  = os.Getenv("IPSTACK_API_KEY")
-	jwtKey         = []byte(os.Getenv("JWT_KEY"))
-	db             *pgxpool.Pool
-	locTimeout     time.Duration
+	defaultDest   = os.Getenv("DEFAULT_DEST")
+	defaultPin    = os.Getenv("PIN")
+	ipstackAPIKey = os.Getenv("IPSTACK_API_KEY")
+	jwtKey        = []byte(os.Getenv("JWT_KEY"))
+	db            *pgxpool.Pool
+	locTimeout    time.Duration
 )
 
 func main() {
