@@ -21,7 +21,7 @@ func newPinsHandler(rw http.ResponseWriter, r *http.Request) {
 		response.Pin = fmt.Sprintf("%d", rand.Intn(8999)+1000)
 	}
 
-	response.PinHash = string(hasher.Sum([]byte(response.Pin)))
+	response.PinHash = fmt.Sprintf("%x", hasher.Sum([]byte(response.Pin))[:3])
 
 	response.Info = "https://ref-collector-2021.herokuapp.com/info"
 

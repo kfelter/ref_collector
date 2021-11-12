@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/md5"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -24,7 +23,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
-	pinHash := fmt.Sprintf("%x", md5.Sum([]byte(pin)))
+	pinHash := fmt.Sprintf("%x", hasher.Sum([]byte(pin))[:3])
 
 	var (
 		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()

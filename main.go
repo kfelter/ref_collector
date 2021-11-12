@@ -22,7 +22,7 @@ var (
 	defaultDest    = os.Getenv("DEFAULT_DEST")
 	salt           = os.Getenv("SALT")
 	hasher         = md5.New()
-	defaultPinHash = fmt.Sprintf("%x", md5.Sum([]byte(os.Getenv("PIN"))))
+	defaultPinHash = ""
 	ipstackAPIKey  = os.Getenv("IPSTACK_API_KEY")
 	jwtKey         = []byte(os.Getenv("JWT_KEY"))
 	db             *pgxpool.Pool
@@ -38,6 +38,8 @@ func main() {
 	if err != nil {
 		log.Fatalln("could not initialize hasher:", err)
 	}
+	defaultPinHash = fmt.Sprintf("%x", hasher.Sum([]byte(os.Getenv("PIN")))[:3])
+
 	if defaultDest == "" {
 		log.Fatalln("env var DEFAULT_DEST is required")
 	}
