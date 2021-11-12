@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"math"
 	"net/http"
@@ -17,11 +18,12 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 
 	pin := r.URL.Query().Get("pin")
-	if pin != authPin {
+	if pin == "" {
 		rw.WriteHeader(http.StatusUnauthorized)
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
+	pinHash := fmt.Sprintf("%x", hasher.Sum([]byte(pin))[:3])
 
 	var (
 		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()
@@ -34,7 +36,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		toUnixNano = int64(math.MaxInt64)
 	}
 
-	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano)
+	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pinHash)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
@@ -68,7 +70,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(b)
 }
 
-func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]Event, error) {
+func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pinHash string) ([]Event, error) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 	events := []Event{}
 	rows, err := db.Query(ctx,
@@ -77,7 +79,8 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]Event, er
 		 where latitude is not null 
 		 and longitude is not null 
 		 and created_at > $1 
-		 and created_at < $2`, fromUnixNano, toUnixNano)
+		 and created_at < $2
+		 and pin_hash = $3`, fromUnixNano, toUnixNano, pinHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
 	}
@@ -137,7 +140,7 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64) ([]Event, er
 
 func viewMapHandler(rw http.ResponseWriter, r *http.Request) {
 	pin := r.URL.Query().Get("pin")
-	if pin != authPin {
+	if pin == "" {
 		rw.WriteHeader(http.StatusUnauthorized)
 		rw.Write([]byte(`add "pin" query param`))
 		return
@@ -154,7 +157,7 @@ func viewMapHandler(rw http.ResponseWriter, r *http.Request) {
 		toUnixNano = int64(math.MaxInt64)
 	}
 
-	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano)
+	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pin)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
