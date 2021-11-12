@@ -9,5 +9,6 @@ func infoHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(200)
+	rw.Header().Add("Content-Type", "text/html")
 	rw.Write(data)
 }
