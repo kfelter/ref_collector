@@ -43,9 +43,9 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	if dst == "" {
 		dst = defaultDest
 	}
-	pin := r.URL.Query().Get("pin")
-	if pin == "" {
-		pin = defaultPin
+	pinHash := r.URL.Query().Get("pin_hash")
+	if pinHash == "" {
+		pinHash = defaultPinHash
 	}
 
 	id := r.Header.Get("X-Request-Id")
@@ -67,7 +67,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude, pin) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+	_, err = db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude, pin_hash) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 		id,
 		time.Now().UnixNano(),
 		refName,
@@ -81,7 +81,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		locInfo.Zip,
 		locInfo.Latitude,
 		locInfo.Longitude,
-		pin,
+		pinHash,
 	)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)

@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"math"
 	"net/http"
@@ -22,6 +24,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
+	pinHash := fmt.Sprintf("%x", md5.Sum([]byte(pin)))
 
 	var (
 		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()
@@ -34,7 +37,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		toUnixNano = int64(math.MaxInt64)
 	}
 
-	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pin)
+	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pinHash)
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
@@ -68,7 +71,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(b)
 }
 
-func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pin string) ([]Event, error) {
+func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pinHash string) ([]Event, error) {
 	time.Local, _ = time.LoadLocation("America/New_York")
 	events := []Event{}
 	rows, err := db.Query(ctx,
@@ -78,7 +81,7 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pin string) 
 		 and longitude is not null 
 		 and created_at > $1 
 		 and created_at < $2
-		 and pin = $3`, fromUnixNano, toUnixNano, pin)
+		 and pin_hash = $3`, fromUnixNano, toUnixNano, pinHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
 	}

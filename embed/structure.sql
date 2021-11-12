@@ -15,4 +15,4 @@ ADD COLUMN IF NOT EXISTS city text,
 ADD COLUMN IF NOT EXISTS zip text,
 ADD COLUMN IF NOT EXISTS latitude double precision,
 ADD COLUMN IF NOT EXISTS longitude double precision,
-ADD COLUMN IF NOT EXISTS pin text;
+ADD COLUMN IF NOT EXISTS pin_hash text;

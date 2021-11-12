@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"embed"
 	_ "embed"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -16,25 +19,28 @@ var (
 	//go:embed embed
 	embedFS embed.FS
 
-	defaultDest   = os.Getenv("DEFAULT_DEST")
-	defaultPin    = os.Getenv("PIN")
-	ipstackAPIKey = os.Getenv("IPSTACK_API_KEY")
-	jwtKey        = []byte(os.Getenv("JWT_KEY"))
-	db            *pgxpool.Pool
-	locTimeout    time.Duration
+	defaultDest    = os.Getenv("DEFAULT_DEST")
+	salt           = os.Getenv("SALT")
+	hasher         = md5.New()
+	defaultPinHash = fmt.Sprintf("%x", md5.Sum([]byte(os.Getenv("PIN"))))
+	ipstackAPIKey  = os.Getenv("IPSTACK_API_KEY")
+	jwtKey         = []byte(os.Getenv("JWT_KEY"))
+	db             *pgxpool.Pool
+	locTimeout     time.Duration
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+	if salt == "" {
+		log.Fatalln("env var SALT is required")
+	}
+	_, err := hasher.Write([]byte(salt))
+	if err != nil {
+		log.Fatalln("could not initialize hasher:", err)
+	}
 	if defaultDest == "" {
 		log.Fatalln("env var DEFAULT_DEST is required")
 	}
-	var err error
-	locTimeout, err = time.ParseDuration(os.Getenv("LOC_TIMEOUT"))
-	if err != nil {
-		log.Println("setting loc timeout to default 300ms")
-		locTimeout = 300 * time.Millisecond
-	}
-
 	poolConfig, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalln("Unable to parse DATABASE_URL", "error", err)
@@ -54,10 +60,18 @@ func main() {
 		log.Fatalln(err, ", pg executing:", string(structureSQL))
 	}
 
+	locTimeout, err = time.ParseDuration(os.Getenv("LOC_TIMEOUT"))
+	if err != nil {
+		log.Println("setting loc timeout to default 300ms")
+		locTimeout = 300 * time.Millisecond
+	}
+
 	http.HandleFunc("/favicon.ico", favHandler)
 	http.HandleFunc("/robots.txt", robotsHandler)
 	http.HandleFunc("/view/map", viewMapHandler)
 	http.HandleFunc("/view", viewHandler)
+	http.HandleFunc("/info", infoHandler)
+	http.HandleFunc("/pins/new", newPinsHandler)
 	http.HandleFunc("/", refHandler)
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
 		log.Fatalln(err)
