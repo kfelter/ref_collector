@@ -56,15 +56,21 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	if ss := strings.Split(addr, ","); len(ss) > 1 {
 		addr = ss[0]
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), locTimeout)
-	defer cancel()
 
-	locInfo, err := getLoc(ctx, addr)
-	if err != nil {
-		log.Println("error getting location data", err)
-		// TODO: remove 500 error after confirming it works
-		http.Error(rw, err.Error(), 500)
-		return
+	var (
+		loc *locInfo
+		err error
+	)
+	userAgent := r.Header.Get("User-Agent")
+	if !strings.Contains(userAgent, "bot") &&
+		!strings.Contains(userAgent, "ahrefs") {
+		ctx, cancel := context.WithTimeout(context.Background(), locTimeout)
+		defer cancel()
+
+		loc, err = getLoc(ctx, addr)
+		if err != nil {
+			log.Println("error getting location data", err)
+		}
 	}
 
 	_, err = db.Exec(r.Context(), `insert into ref(id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude, pin_hash) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
@@ -73,14 +79,14 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		refName,
 		dst,
 		addr,
-		r.Header.Get("User-Agent"),
-		locInfo.Continent,
-		locInfo.Country,
-		locInfo.Region,
-		locInfo.City,
-		locInfo.Zip,
-		locInfo.Latitude,
-		locInfo.Longitude,
+		userAgent,
+		loc.Continent,
+		loc.Country,
+		loc.Region,
+		loc.City,
+		loc.Zip,
+		loc.Latitude,
+		loc.Longitude,
 		pinHash,
 	)
 	if err != nil {
