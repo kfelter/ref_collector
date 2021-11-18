@@ -25,7 +25,7 @@ type Event struct {
 	Zip         string  `json:"zip,omitempty"`
 	Latitude    float64 `json:"latitude,omitempty"`
 	Longitude   float64 `json:"longitude,omitempty"`
-	TimeHuman   string  `json:"time_human"`
+	TimeHuman   string  `json:"time_human,omitempty"`
 }
 
 func (e Event) String() string {
