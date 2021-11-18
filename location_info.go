@@ -49,7 +49,7 @@ func getLoc(ctx context.Context, addr string) (*locInfo, error) {
 
 func checkCache(ctx context.Context, addr string) (locInfo, error) {
 	info := locInfo{}
-	row := db.QueryRow(ctx, "select continent, country, region, city, zip, latitude, longitude FROM ref where request_addr = $1", addr)
+	row := db.QueryRow(ctx, "select continent, country, region, city, zip, latitude, longitude FROM ref where request_addr = $1 and continent <> ''", addr)
 	err := row.Scan(&info.Continent, &info.Country, &info.Region, &info.City, &info.Zip, &info.Latitude, &info.Longitude)
 	return info, err
 }
