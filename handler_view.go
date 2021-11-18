@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"math"
 	"net/http"
 	"strings"
@@ -136,45 +135,4 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pinHash stri
 		})
 	}
 	return events, nil
-}
-
-func viewMapHandler(rw http.ResponseWriter, r *http.Request) {
-	pin := r.URL.Query().Get("pin")
-	if pin == "" {
-		rw.WriteHeader(http.StatusUnauthorized)
-		rw.Write([]byte(`add "pin" query param`))
-		return
-	}
-
-	var (
-		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()
-		toUnixNano   = time.Now().UnixNano()
-	)
-
-	tRange := r.URL.Query().Get("range")
-	if tRange == "all" {
-		fromUnixNano = int64(0)
-		toUnixNano = int64(math.MaxInt64)
-	}
-
-	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pin)
-	if err != nil {
-		http.Error(rw, err.Error(), 500)
-		return
-	}
-	data, err := embedFS.ReadFile("embed/tmpl/map.go.tmpl")
-	if err != nil {
-		http.Error(rw, err.Error(), 500)
-		return
-	}
-	t, err := template.New("map").Parse(string(data))
-	if err != nil {
-		http.Error(rw, err.Error(), 500)
-		return
-	}
-	err = t.ExecuteTemplate(rw, "map", events)
-	if err != nil {
-		http.Error(rw, err.Error(), 500)
-		return
-	}
 }

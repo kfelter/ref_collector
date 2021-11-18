@@ -21,10 +21,9 @@ var (
 
 	defaultDest    = os.Getenv("DEFAULT_DEST")
 	salt           = os.Getenv("SALT")
-	hasher         = md5.New()
-	defaultPinHash = ""
 	ipstackAPIKey  = os.Getenv("IPSTACK_API_KEY")
-	jwtKey         = []byte(os.Getenv("JWT_KEY"))
+	hasher         = md5.New()
+	defaultPinHash string
 	db             *pgxpool.Pool
 	locTimeout     time.Duration
 )
@@ -74,7 +73,6 @@ func main() {
 
 	http.HandleFunc("/favicon.ico", favHandler)
 	http.HandleFunc("/robots.txt", robotsHandler)
-	http.HandleFunc("/view/map", viewMapHandler)
 	http.HandleFunc("/view", viewHandler)
 	http.HandleFunc("/info", infoHandler)
 	http.HandleFunc("/pins/new", newPinsHandler)
