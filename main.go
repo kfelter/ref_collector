@@ -62,6 +62,10 @@ func main() {
 		log.Fatalln(err, ", pg executing:", string(structureSQL))
 	}
 
+	if err := repairDB(db); err != nil {
+		log.Fatalln("error repairing db:", err)
+	}
+
 	locTimeout, err = time.ParseDuration(os.Getenv("LOC_TIMEOUT"))
 	if err != nil {
 		log.Println("setting loc timeout to default 300ms")
@@ -93,4 +97,60 @@ func favHandler(rw http.ResponseWriter, r *http.Request) {
 func robotsHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(200)
 	rw.Write([]byte(`crawl-delay: 86400`))
+}
+
+func repairDB(db *pgxpool.Pool) error {
+	_, err := db.Exec(
+		context.Background(),
+		"delete from ref where pin_hash = ''",
+	)
+	if err != nil {
+		return err
+	}
+
+	rows, err := db.Query(
+		context.Background(),
+		`select id, request_addr
+		from ref
+		where zip = ''`,
+	)
+
+	needsGeo := make([]Event, 0)
+	for rows.Next() {
+		var id, addr string
+		err := rows.Scan(&id, &addr)
+		if err != nil {
+			return err
+		}
+		needsGeo = append(needsGeo, Event{ID: id, RequestAddr: addr})
+	}
+	for _, ref := range needsGeo {
+		info, err := checkCache(context.Background(), ref.RequestAddr)
+		if err == nil {
+			_, err := db.Exec(
+				context.Background(),
+				`update ref 
+				set continent = $1, 
+				country = $2,
+				region = $3,
+				city = $4,
+				zip = $5,
+				latitude = $6,
+				longitude = $7
+				where id = $8`,
+				info.Continent,
+				info.Country,
+				info.Region,
+				info.City,
+				info.Zip,
+				info.Latitude,
+				info.Longitude,
+				ref.ID,
+			)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
