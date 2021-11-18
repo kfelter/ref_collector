@@ -100,6 +100,7 @@ func robotsHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 func repairDB(db *pgxpool.Pool) error {
+	log.Println("repairing db ...")
 	_, err := db.Exec(
 		context.Background(),
 		"delete from ref where pin_hash = ''",
@@ -124,12 +125,16 @@ func repairDB(db *pgxpool.Pool) error {
 		}
 		needsGeo = append(needsGeo, Event{ID: id, RequestAddr: addr})
 	}
+	log.Println(len(needsGeo), "events need geo data")
 	for _, ref := range needsGeo {
 		info, err := checkCache(context.Background(), ref.RequestAddr)
-		if err == nil {
-			_, err := db.Exec(
-				context.Background(),
-				`update ref 
+		if err != nil {
+			log.Println("could not repair record:", ref.ID, ref.RequestAddr)
+			continue
+		}
+		_, err = db.Exec(
+			context.Background(),
+			`update ref 
 				set continent = $1, 
 				country = $2,
 				region = $3,
@@ -138,18 +143,17 @@ func repairDB(db *pgxpool.Pool) error {
 				latitude = $6,
 				longitude = $7
 				where id = $8`,
-				info.Continent,
-				info.Country,
-				info.Region,
-				info.City,
-				info.Zip,
-				info.Latitude,
-				info.Longitude,
-				ref.ID,
-			)
-			if err != nil {
-				return err
-			}
+			info.Continent,
+			info.Country,
+			info.Region,
+			info.City,
+			info.Zip,
+			info.Latitude,
+			info.Longitude,
+			ref.ID,
+		)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
