@@ -71,6 +71,8 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println("error getting location data", err)
 		}
+	} else {
+		loc = &locInfo{}
 	}
 
 	createdAt := time.Now().UnixNano()

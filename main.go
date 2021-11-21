@@ -61,8 +61,10 @@ func main() {
 		log.Fatalln(err, ", pg executing:", string(structureSQL))
 	}
 
-	if err := repairDB(db); err != nil {
-		log.Fatalln("error repairing db:", err)
+	if os.Getenv("REPAIR_DB") == "true" {
+		if err := repairDB(db); err != nil {
+			log.Fatalln("error repairing db:", err)
+		}
 	}
 
 	locTimeout, err = time.ParseDuration(os.Getenv("LOC_TIMEOUT"))
