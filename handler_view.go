@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 )
 
@@ -35,7 +36,7 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		toUnixNano = int64(math.MaxInt64)
 	}
 
-	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pinHash)
+	events, err := getEvents(r.Context(), fromUnixNano, toUnixNano, pinHash, r.URL.Query().Get("name"))
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
@@ -69,17 +70,34 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(b)
 }
 
-func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pinHash string) ([]Event, error) {
+func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pinHash, name string) ([]Event, error) {
 	time.Local, _ = time.LoadLocation("America/New_York")
-	events := []Event{}
-	rows, err := db.Query(ctx,
-		`select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude
-		 from ref 
-		 where latitude is not null 
-		 and longitude is not null 
-		 and created_at > $1 
-		 and created_at < $2
-		 and pin_hash = $3`, fromUnixNano, toUnixNano, pinHash)
+	var (
+		events = make([]Event, 0)
+		rows   pgx.Rows
+		err    error
+	)
+
+	if name != "" {
+		rows, err = db.Query(ctx,
+			`select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude
+			 from ref 
+			 where latitude is not null 
+			 and longitude is not null 
+			 and created_at > $1 
+			 and created_at < $2
+			 and pin_hash = $3
+			 and name = $4`, fromUnixNano, toUnixNano, pinHash, name)
+	} else {
+		rows, err = db.Query(ctx,
+			`select id, created_at, name, dst, request_addr, user_agent, continent, country, region, city, zip, latitude, longitude
+			 from ref 
+			 where latitude is not null 
+			 and longitude is not null 
+			 and created_at > $1 
+			 and created_at < $2
+			 and pin_hash = $3`, fromUnixNano, toUnixNano, pinHash)
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
 	}
