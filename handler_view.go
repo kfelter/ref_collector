@@ -93,7 +93,7 @@ func getEvents(ctx context.Context, fromUnixNano, toUnixNano int64, pinHash, nam
 			and created_at < $2
 			and pin_hash = $3
 			and ($4 = '' or name = $4)
-			and ($5 = '' or ip = $5);`, fromUnixNano, toUnixNano, pinHash, name, ip)
+			and ($5 = '' or request_addr = $5);`, fromUnixNano, toUnixNano, pinHash, name, ip)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "db.Query")
