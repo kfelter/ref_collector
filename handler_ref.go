@@ -33,6 +33,12 @@ func (e Event) String() string {
 	return string(data)
 }
 
+var (
+	blocked = map[string]bool{
+		"141.98.81.24": true,
+	}
+)
+
 func refHandler(rw http.ResponseWriter, r *http.Request) {
 	// get query vars
 	refName := r.URL.Query().Get("ref")
@@ -55,6 +61,12 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	addr := r.Header.Get("X-Forwarded-For")
 	if ss := strings.Split(addr, ","); len(ss) > 1 {
 		addr = ss[0]
+	}
+
+	if blocked[addr] {
+		http.Redirect(rw, r, "https://c.tenor.com/qA9u4ETE66MAAAAC/hello-there-kenobi.gif", http.StatusTemporaryRedirect)
+		log.Println("blocked ip attempted request", r.URL.String())
+		return
 	}
 
 	var (
