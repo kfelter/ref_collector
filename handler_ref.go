@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -34,9 +35,7 @@ func (e Event) String() string {
 }
 
 var (
-	blocked = map[string]bool{
-		"141.98.81.24": true,
-	}
+	blocked = os.Getenv("BLOCKED_IPS")
 )
 
 func refHandler(rw http.ResponseWriter, r *http.Request) {
@@ -63,10 +62,10 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		addr = ss[0]
 	}
 
-	if blocked[addr] {
-		http.Redirect(rw, r, "https://c.tenor.com/qA9u4ETE66MAAAAC/hello-there-kenobi.gif", http.StatusTemporaryRedirect)
+	if strings.Contains(blocked, addr) {
+		refName = "BLOCKED+" + refName
+		dst = "https://c.tenor.com/qA9u4ETE66MAAAAC/hello-there-kenobi.gif"
 		log.Println("blocked ip attempted request", r.URL.String())
-		return
 	}
 
 	var (
