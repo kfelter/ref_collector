@@ -17,6 +17,7 @@ const (
 	yugeGIF       = "https://media1.giphy.com/media/j3IxJRLNLZz9sXR7ZA/giphy.gif?cid=ecf05e47diq003c3175znofrtmafu403shyfpswksd8wtd4y&rid=giphy.gif&ct=g"
 	helloThereGIF = "https://c.tenor.com/qA9u4ETE66MAAAAC/hello-there-kenobi.gif"
 	whatIsThisGIF = "https://media4.giphy.com/media/3ohuAAAIvICvEs4Psc/giphy.gif?cid=ecf05e47yoxb3as45q2uc26c2ehzb73n3cjfbbid5vko5l4x&rid=giphy.gif&ct=g"
+	haltGIF       = "https://media0.giphy.com/media/tB8Wl0JABkSkQa7vGE/giphy.gif?cid=ecf05e47e3evasivauciept7kb15gipxut9vnctmhnk787ay&rid=giphy.gif&ct=g"
 )
 
 var (
@@ -91,7 +92,12 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	t0 := now.Add(-5 * time.Minute)
 	count, err := countRequests(addr, t0.UnixNano(), now.UnixNano())
-	log.Println("ip", addr, "made", count, "in", now.Sub(t0).String(), "err", err)
+	log.Println("ip", addr, "made", count, "requests in", now.Sub(t0).String(), "err", err)
+	if count > 10 {
+		http.Redirect(rw, r, haltGIF, http.StatusBadRequest)
+		log.Println("too many requests", r.URL.String(), r.RemoteAddr)
+		return
+	}
 
 	var (
 		loc *locInfo
