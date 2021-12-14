@@ -5,11 +5,22 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+const (
+	yugeGIF       = "https://media1.giphy.com/media/j3IxJRLNLZz9sXR7ZA/giphy.gif?cid=ecf05e47diq003c3175znofrtmafu403shyfpswksd8wtd4y&rid=giphy.gif&ct=g"
+	helloThereGIF = "https://c.tenor.com/qA9u4ETE66MAAAAC/hello-there-kenobi.gif"
+	whatIsThisGIF = "https://media4.giphy.com/media/3ohuAAAIvICvEs4Psc/giphy.gif?cid=ecf05e47yoxb3as45q2uc26c2ehzb73n3cjfbbid5vko5l4x&rid=giphy.gif&ct=g"
+)
+
+var (
+	blocked = os.Getenv("BLOCKED_IPS")
 )
 
 type Event struct {
@@ -34,20 +45,27 @@ func (e Event) String() string {
 	return string(data)
 }
 
-var (
-	blocked = os.Getenv("BLOCKED_IPS")
-)
-
 func refHandler(rw http.ResponseWriter, r *http.Request) {
 	// get query vars
 	refName := r.URL.Query().Get("ref")
 	if refName == "" {
 		refName = "unknown"
 	}
+	if len(refName) > 40 {
+		http.Redirect(rw, r, yugeGIF, http.StatusBadRequest)
+		log.Println("ref name too large", r.URL.String(), r.RemoteAddr)
+		return
+	}
 	dst := r.URL.Query().Get("dst")
 	if dst == "" {
 		dst = defaultDest
 	}
+	if _, err := url.Parse(dst); err != nil {
+		http.Redirect(rw, r, whatIsThisGIF, http.StatusBadRequest)
+		log.Println("dst is not valid", r.URL.String(), r.RemoteAddr)
+		return
+	}
+
 	pinHash := r.URL.Query().Get("pin_hash")
 	if pinHash == "" {
 		pinHash = defaultPinHash
@@ -62,15 +80,21 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		addr = ss[0]
 	}
 
+	// check if the ip address is blocked
 	if strings.Contains(blocked, addr) {
-		refName = "BLOCKED+" + refName
-		dst = "https://c.tenor.com/qA9u4ETE66MAAAAC/hello-there-kenobi.gif"
+		dst = helloThereGIF
 		log.Println("blocked ip attempted request", r.URL.String())
+		return
 	}
+
+	// check if the ip address is making too many requests
+	now := time.Now()
+	t0 := now.Add(-5 * time.Minute)
+	count, err := countRequests(addr, t0.UnixNano(), now.UnixNano())
+	log.Println("ip", addr, "made", count, "in", now.Sub(t0).String(), "err", err)
 
 	var (
 		loc *locInfo
-		err error
 	)
 	userAgent := r.Header.Get("User-Agent")
 	if !strings.Contains(userAgent, "bot") &&
