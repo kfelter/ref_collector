@@ -93,7 +93,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	t0 := now.Add(-5 * time.Minute)
 	count, err := countRequests(addr, t0.UnixNano(), now.UnixNano())
 	log.Println("ip", addr, "made", count, "requests in", now.Sub(t0).String(), "err", err)
-	if count > 10 {
+	if count > 20 {
 		http.Redirect(rw, r, haltGIF, http.StatusTemporaryRedirect)
 		log.Println("too many requests", r.URL.String(), r.RemoteAddr)
 		return
