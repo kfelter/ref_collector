@@ -53,7 +53,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		refName = "unknown"
 	}
 	if len(refName) > 40 {
-		http.Redirect(rw, r, yugeGIF, http.StatusBadRequest)
+		http.Redirect(rw, r, yugeGIF, http.StatusTemporaryRedirect)
 		log.Println("ref name too large", r.URL.String(), r.RemoteAddr)
 		return
 	}
@@ -62,7 +62,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		dst = defaultDest
 	}
 	if _, err := url.Parse(dst); err != nil {
-		http.Redirect(rw, r, whatIsThisGIF, http.StatusBadRequest)
+		http.Redirect(rw, r, whatIsThisGIF, http.StatusTemporaryRedirect)
 		log.Println("dst is not valid", r.URL.String(), r.RemoteAddr)
 		return
 	}
@@ -94,7 +94,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	count, err := countRequests(addr, t0.UnixNano(), now.UnixNano())
 	log.Println("ip", addr, "made", count, "requests in", now.Sub(t0).String(), "err", err)
 	if count > 10 {
-		http.Redirect(rw, r, haltGIF, http.StatusBadRequest)
+		http.Redirect(rw, r, haltGIF, http.StatusTemporaryRedirect)
 		log.Println("too many requests", r.URL.String(), r.RemoteAddr)
 		return
 	}
