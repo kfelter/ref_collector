@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -107,6 +108,16 @@ func repairDB(db *pgxpool.Pool) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	for _, ip := range strings.Split(blocked, ",") {
+		log.Println("deleting all records with req addr:", ip)
+		_, err := db.Exec(
+			context.Background(),
+			"delete from ref where request_addr = $1", ip)
+		if err != nil {
+			return err
+		}
 	}
 
 	rows, err := db.Query(
