@@ -47,6 +47,22 @@ func (e Event) String() string {
 }
 
 func refHandler(rw http.ResponseWriter, r *http.Request) {
+	dst := r.URL.Query().Get("dst")
+	if dst == "" {
+		dst = defaultDest
+	}
+
+	addr := r.Header.Get("X-Forwarded-For")
+	if ss := strings.Split(addr, ","); len(ss) > 1 {
+		addr = ss[0]
+	}
+
+	// check if the ip address is blocked
+	if strings.Contains(blocked, addr) {
+		dst = helloThereGIF
+		log.Println("BLOCKED ip attempted request", r.URL.String(), addr)
+	}
+
 	// get query vars
 	refName := r.URL.Query().Get("ref")
 	if refName == "" {
@@ -54,16 +70,13 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 	if len(refName) > 40 {
 		http.Redirect(rw, r, yugeGIF, http.StatusTemporaryRedirect)
-		log.Println("ref name too large", r.URL.String(), r.RemoteAddr)
+		log.Println("BLOCKED ref name too large", r.URL.String(), addr)
 		return
 	}
-	dst := r.URL.Query().Get("dst")
-	if dst == "" {
-		dst = defaultDest
-	}
+
 	if _, err := url.Parse(dst); err != nil {
 		http.Redirect(rw, r, whatIsThisGIF, http.StatusTemporaryRedirect)
-		log.Println("dst is not valid", r.URL.String(), r.RemoteAddr)
+		log.Println("BLOCKED dst is not valid", r.URL.String(), addr)
 		return
 	}
 
@@ -76,26 +89,15 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		id = uuid.New().String()
 	}
-	addr := r.Header.Get("X-Forwarded-For")
-	if ss := strings.Split(addr, ","); len(ss) > 1 {
-		addr = ss[0]
-	}
-
-	// check if the ip address is blocked
-	if strings.Contains(blocked, addr) {
-		dst = helloThereGIF
-		log.Println("blocked ip attempted request", r.URL.String())
-		return
-	}
 
 	// check if the ip address is making too many requests
 	now := time.Now()
-	t0 := now.Add(-5 * time.Minute)
+	t0 := now.Add(-1 * time.Minute)
 	count, err := countRequests(addr, t0.UnixNano(), now.UnixNano())
 	log.Println("ip", addr, "made", count, "requests in", now.Sub(t0).String(), "err", err)
-	if count > 20 {
+	if count > 5 {
 		http.Redirect(rw, r, haltGIF, http.StatusTemporaryRedirect)
-		log.Println("too many requests", r.URL.String(), r.RemoteAddr)
+		log.Println("BLOCKED too many requests", r.URL.String(), addr)
 		return
 	}
 
@@ -110,7 +112,7 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 
 		loc, err = getLoc(ctx, addr)
 		if err != nil {
-			log.Println("error getting location data", err)
+			log.Println("error getting location data", err, addr)
 		}
 	} else {
 		loc = &locInfo{}
