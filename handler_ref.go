@@ -139,6 +139,16 @@ func refHandler(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, err.Error(), 500)
 		return
 	}
+	if r.URL.Query().Get("as") == "pdf" {
+		err := URLasPDF(dst, rw)
+		if err != nil {
+			log.Println("err URLasPDF:", err)
+			http.Redirect(rw, r, dst, http.StatusTemporaryRedirect)
+			return
+		}
+		return
+	}
+
 	log.Println("event", Event{ID: id, CreatedAt: createdAt, Name: refName, Dest: dst, RequestAddr: addr, UserAgent: userAgent}, "pinhash", pinHash)
 	http.Redirect(rw, r, dst, http.StatusTemporaryRedirect)
 	return
