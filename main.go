@@ -71,9 +71,10 @@ func main() {
 
 	locTimeout, err = time.ParseDuration(os.Getenv("LOC_TIMEOUT"))
 	if err != nil {
-		log.Println("setting loc timeout to default 300ms")
 		locTimeout = 300 * time.Millisecond
 	}
+
+	log.Println(runtime.GOOS, " ", runtime.GOARCH)
 
 	http.HandleFunc("/favicon.ico", favHandler)
 	http.HandleFunc("/robots.txt", robotsHandler)
@@ -84,7 +85,6 @@ func main() {
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(runtime.GOOS, " ", runtime.GOARCH)
 }
 
 func favHandler(rw http.ResponseWriter, r *http.Request) {
