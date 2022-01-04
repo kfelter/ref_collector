@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -83,6 +84,7 @@ func main() {
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
 		log.Fatalln(err)
 	}
+	print(runtime.GOOS, " ", runtime.GOARCH)
 }
 
 func favHandler(rw http.ResponseWriter, r *http.Request) {
