@@ -19,8 +19,8 @@ func URLasPDF(url string, out io.Writer) error {
 
 	// Set global options
 	pdfg.Dpi.Set(300)
-	pdfg.Orientation.Set(pdf.OrientationLandscape)
-	pdfg.Grayscale.Set(true)
+	pdfg.Orientation.Set(pdf.OrientationPortrait)
+	pdfg.Grayscale.Set(false)
 
 	// Create a new input page from an URL
 	page := pdf.NewPage(url)
