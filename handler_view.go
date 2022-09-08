@@ -23,7 +23,12 @@ func viewHandler(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte(`add "pin" query param`))
 		return
 	}
-	pinHash := fmt.Sprintf("%x", hasher.Sum([]byte(pin))[:3])
+	/*
+		old: pinHash := fmt.Sprintf("%x", hasher.Sum([]byte(pin))[:3])
+		pinHash is now the full md5 hash of the pin + salt to ensure users
+		dont share traffic events
+	*/
+	pinHash := fmt.Sprintf("%x", hasher.Sum([]byte(pin)))
 
 	var (
 		fromUnixNano = time.Now().Add(-24 * time.Hour).UnixNano()

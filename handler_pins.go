@@ -1,11 +1,10 @@
 package main
 
-import (
-	"encoding/json"
-	"fmt"
-	"math/rand"
-	"net/http"
-)
+/*
+Depricated since this method of generating pins will often generate the same
+random pin_hash used to identify traffic for a specific pin meaning that
+users could have traffic in their DB from other users
+
 
 func newPinsHandler(rw http.ResponseWriter, r *http.Request) {
 	type res struct {
@@ -29,3 +28,4 @@ func newPinsHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(200)
 	rw.Write(data)
 }
+*/

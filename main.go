@@ -39,7 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatalln("could not initialize hasher:", err)
 	}
-	defaultPinHash = fmt.Sprintf("%x", hasher.Sum([]byte(os.Getenv("PIN")))[:3])
+	defaultPinHash = fmt.Sprintf("%x", hasher.Sum([]byte(os.Getenv("PIN"))))
 
 	if defaultDest == "" {
 		log.Fatalln("env var DEFAULT_DEST is required")
@@ -80,7 +80,8 @@ func main() {
 	http.HandleFunc("/robots.txt", robotsHandler)
 	http.HandleFunc("/view", viewHandler)
 	http.HandleFunc("/info", infoHandler)
-	http.HandleFunc("/pins/new", newPinsHandler)
+	http.HandleFunc("/health", healthHandler)
+	// http.HandleFunc("/pins/new", newPinsHandler)
 	http.HandleFunc("/", refHandler)
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), nil); err != nil {
 		log.Fatalln(err)
